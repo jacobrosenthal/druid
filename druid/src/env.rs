@@ -14,16 +14,17 @@
 
 //! An environment which is passed downward into the widget tree.
 
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::sync::Arc;
+////use std::collections::HashMap;
+////use std::fmt::{Debug, Formatter};
+use core::marker::PhantomData;////
+////use std::marker::PhantomData;
+////use std::ops::Deref;
+////use std::sync::Arc;
 
 use crate::kurbo::{Point, Rect, Size};
 use crate::piet::{Color, LinearGradient};
 
-use crate::localization::L10nManager;
+////use crate::localization::L10nManager;
 use crate::Data;
 
 /// An environment passed down through all widget traversals.
@@ -36,14 +37,18 @@ use crate::Data;
 /// example of the latter is setting a value for enabled/disabled status
 /// so that an entire subtree can be disabled ("grayed out") with one
 /// setting.
-#[derive(Clone)]
-pub struct Env(Arc<EnvImpl>);
+#[derive(Clone, Copy)] ////
+///#[derive(Clone)]
+pub struct Env {} ////
+////pub struct Env(Arc<EnvImpl>);
 
+/*
 #[derive(Clone)]
 struct EnvImpl {
     map: HashMap<String, Value>,
     l10n: Arc<L10nManager>,
 }
+*/
 
 /// A typed key.
 ///
@@ -57,6 +62,26 @@ pub struct Key<T> {
     value_type: PhantomData<T>,
 }
 
+type MaxStringValue = heapless::consts::U20; //// Max length of string values
+type String = heapless::String::<MaxStringValue>; ////
+
+////TODO: Sync with piet-embedded-graphics/src/text.rs
+////pub type FontType<'a> = fonts::Font12x16::<'a, Rgb565>;
+pub const FONT_WIDTH:  u16  = 12;
+pub const FONT_HEIGHT: u16  = 16;
+pub const FONT_NAME:   &str = &"Font12x16";
+pub const TEXT_SIZE_NORMAL: f64 = FONT_HEIGHT as f64;
+
+pub const WINDOW_WIDTH:  u16 = 240;  //// 240x240 screen for PineTime
+pub const WINDOW_HEIGHT: u16 = 240;
+
+pub const WINDOW_BACKGROUND_COLOR: Color = Color::BLACK;
+pub const LABEL_COLOR:  Color = Color::WHITE;
+pub const BORDER:       Color = Color::WHITE;
+pub const BORDER_LIGHT: Color = Color::WHITE;
+pub const BUTTON_LIGHT: Color = Color::BLACK;
+pub const BUTTON_DARK:  Color = Color::BLACK;
+
 // we could do some serious deriving here: the set of types that can be stored
 // could be defined per-app
 // Also consider Box<Any> (though this would also impact debug).
@@ -67,7 +92,7 @@ pub enum Value {
     Size(Size),
     Rect(Rect),
     Color(Color),
-    LinearGradient(Arc<LinearGradient>),
+    ////LinearGradient(Arc<LinearGradient>),
     Float(f64),
     UnsignedInt(u64),
     String(String),
@@ -107,11 +132,14 @@ impl Env {
     ///
     /// Panics if the key is not found, or if it is present with the wrong type.
     pub fn get<'a, V: ValueType<'a>>(&'a self, key: Key<V>) -> V {
+        panic!("no env get"); ////TODO
+        /* ////
         if let Some(value) = self.0.map.get(key.key) {
             value.to_inner_unchecked()
         } else {
             panic!("key for {} not found", key.key)
         }
+        */ ////
     }
 
     /// Gets a value from the environment.
@@ -120,16 +148,21 @@ impl Env {
     ///
     /// Panics if the value for the key is found, but has the wrong type.
     pub fn try_get<'a, V: ValueType<'a>>(&'a self, key: Key<V>) -> Option<V> {
+        assert!(false, "no env try_get"); ////TODO
+        None ////
+        /*
         self.0
             .map
             .get(key.key)
             .map(|value| value.to_inner_unchecked())
+        */
     }
 
     /// Adds a key/value, acting like a builder.
     pub fn adding<'a, V: ValueType<'a>>(mut self, key: Key<V>, value: impl Into<V::Owned>) -> Env {
-        let env = Arc::make_mut(&mut self.0);
-        env.map.insert(key.into(), value.into().into());
+        assert!(false, "no env add"); ////TODO
+        ////let env = Arc::make_mut(&mut self.0);
+        ////env.map.insert(key.into(), value.into().into());
         self
     }
 
@@ -140,6 +173,8 @@ impl Env {
     /// Panics if the environment already has a value for the key, but it is
     /// of a different type.
     pub fn set<'a, V: ValueType<'a>>(&'a mut self, key: Key<V>, value: impl Into<V::Owned>) {
+        assert!(false, "no env set"); ////TODO
+        /* ////
         let env = Arc::make_mut(&mut self.0);
         let value = value.into().into();
         let key = key.into();
@@ -153,8 +188,10 @@ impl Env {
             }
         }
         env.map.insert(key, value);
+        */ ////
     }
 
+    /*
     /// Returns a reference to the [`L10nManager`], which handles localization
     /// resources.
     ///
@@ -162,8 +199,10 @@ impl Env {
     pub(crate) fn localization_manager(&self) -> &L10nManager {
         &self.0.l10n
     }
+    */
 }
 
+/* ////
 impl Debug for Value {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
@@ -179,6 +218,7 @@ impl Debug for Value {
         }
     }
 }
+*/ ////
 
 impl<T> Key<T> {
     /// Create a new strongly typed `Key` with the given string value.
@@ -221,7 +261,7 @@ impl Value {
             (Size(_), Size(_)) => true,
             (Rect(_), Rect(_)) => true,
             (Color(_), Color(_)) => true,
-            (LinearGradient(_), LinearGradient(_)) => true,
+            ////(LinearGradient(_), LinearGradient(_)) => true,
             (Float(_), Float(_)) => true,
             (UnsignedInt(_), UnsignedInt(_)) => true,
             (String(_), String(_)) => true,
@@ -240,7 +280,7 @@ impl Data for Value {
             }
             (Size(s1), Size(s2)) => s1.width.same(&s2.width) && s1.height.same(&s2.height),
             (Color(c1), Color(c2)) => c1.as_rgba_u32() == c2.as_rgba_u32(),
-            (LinearGradient(g1), LinearGradient(g2)) => Arc::ptr_eq(g1, g2),
+            ////(LinearGradient(g1), LinearGradient(g2)) => Arc::ptr_eq(g1, g2),
             (Float(f1), Float(f2)) => f1.same(&f2),
             (UnsignedInt(f1), UnsignedInt(f2)) => f1.same(&f2),
             (String(s1), String(s2)) => s1 == s2,
@@ -251,10 +291,12 @@ impl Data for Value {
 
 impl Data for Env {
     fn same(&self, other: &Env) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.deref().same(other.0.deref())
+        true ////TODO
+        ////Arc::ptr_eq(&self.0, &other.0) || self.0.deref().same(other.0.deref())
     }
 }
 
+/* ////
 impl Data for EnvImpl {
     fn same(&self, other: &EnvImpl) -> bool {
         self.map.len() == other.map.len()
@@ -373,3 +415,4 @@ impl_value_type_owned!(Point, Point);
 impl_value_type_owned!(Size, Size);
 impl_value_type_borrowed!(str, String, String);
 impl_value_type_arc!(LinearGradient, LinearGradient);
+*/

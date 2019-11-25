@@ -14,60 +14,83 @@
 
 //! Management of multiple windows.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+////use std::sync::atomic::{AtomicU32, Ordering};
 
+use core::marker::PhantomData; ////
 use crate::kurbo::{Point, Rect, Size};
 
 use crate::shell::WindowHandle;
 use crate::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LocalizedString, MenuDesc,
+    BoxConstraints, /* Command, */ Data, Env, Event, EventCtx, LayoutCtx, LocalizedString, /* MenuDesc, */ ////
     PaintCtx, UpdateCtx, Widget, WidgetPod,
+    widget::WidgetBox, WindowBox, WindowType, ////
 };
 
 /// A unique identifier for a window.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct WindowId(u32);
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)] ////
+////#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WindowId(pub u32); ////
+////pub struct WindowId(u32);
 
-static WINDOW_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
+static mut WINDOW_ID_COUNTER: u32 = 1; ////
+////static WINDOW_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 /// Per-window state not owned by user code.
-pub struct Window<T: Data> {
-    pub(crate) root: WidgetPod<T, Box<dyn Widget<T>>>,
-    pub(crate) title: LocalizedString<T>,
+#[derive(Clone)] ////
+pub struct Window<T: Data + 'static + Default, W: Widget<T> + 'static> { ////
+////pub struct Window<T: Data> {
+    pub(crate) root: WidgetPod<T, W>, ////
+    ////pub(crate) root: WidgetPod<T, Box<dyn Widget<T>>>,
+    ////pub(crate) title: LocalizedString<T>,
     size: Size,
-    pub(crate) menu: Option<MenuDesc<T>>,
-    pub(crate) context_menu: Option<MenuDesc<T>>,
+    ////pub(crate) menu: Option<MenuDesc<T>>,
+    ////pub(crate) context_menu: Option<MenuDesc<T>>,
+    phantom_data: PhantomData<T>,  ////  Needed to do compile-time checking for `Data`
     // delegate?
 }
 
-impl<T: Data> Window<T> {
+impl<T: Data + 'static + Default, W: Widget<T> + 'static> Window<T, W> { ////
+////impl<T: Data> Window<T> {
     pub fn new(
-        root: impl Widget<T> + 'static,
-        title: LocalizedString<T>,
-        menu: Option<MenuDesc<T>>,
-    ) -> Window<T> {
+        root: W,
+        ////root: &dyn Widget<T>,
+        ////title: LocalizedString<T>,
+        ////menu: Option<MenuDesc<T>>,
+    ) -> Self {
         Window {
-            root: WidgetPod::new(Box::new(root)),
-            size: Size::ZERO,
-            title,
-            menu,
-            context_menu: None,
+            root: WidgetPod::new(root), ////
+            ////root: WidgetPod::new(WidgetBox::new(root)), ////
+            ////root: WidgetPod::new(Box::new(root)),
+            size: Size { //// TODO: Allow auto size
+                width: super::env::WINDOW_WIDTH as f64,
+                height: super::env::WINDOW_HEIGHT as f64,
+            },
+            ////size: Size::ZERO,
+            ////title,
+            ////menu,
+            ////context_menu: None,
+            phantom_data: PhantomData, ////
         }
     }
 
-    pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    pub fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &mut T, env: &Env) { ////
+    ////pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         if let Event::Size(size) = event {
             self.size = *size;
         }
         self.root.event(ctx, event, data, env);
 
+        /* ////
         if let Some(cursor) = ctx.cursor {
             ctx.win_ctx.set_cursor(&cursor);
         }
+        */ ////
     }
 
-    pub fn update(&mut self, update_ctx: &mut UpdateCtx, data: &T, env: &Env) {
-        self.update_title(&update_ctx.window, data, env);
+    pub fn update(&mut self, update_ctx: &mut UpdateCtx<T>, data: &T, env: &Env) {
+    ////pub fn update(&mut self, update_ctx: &mut UpdateCtx, data: &T, env: &Env) {
+        ////self.update_title(&update_ctx.window, data, env);
+        //cortex_m::asm::bkpt(); ////
         self.root.update(update_ctx, data, env);
     }
 
@@ -83,6 +106,7 @@ impl<T: Data> Window<T> {
         paint_ctx.with_child_ctx(visible, |ctx| self.root.paint(ctx, data, env));
     }
 
+    /* ////
     pub(crate) fn update_title(&mut self, win_handle: &WindowHandle, data: &T, env: &Env) {
         if self.title.resolve(data, env) {
             win_handle.set_title(self.title.localized_str());
@@ -95,6 +119,13 @@ impl<T: Data> Window<T> {
             .and_then(|m| m.command_for_id(cmd_id))
             .or_else(|| self.menu.as_ref().and_then(|m| m.command_for_id(cmd_id)))
     }
+    */ ////
+
+    /*
+    pub fn to_type(&mut self) -> WindowType<T> { ////
+        W::to_window_type(self.clone)
+    }
+    */
 }
 
 impl WindowId {
@@ -102,7 +133,9 @@ impl WindowId {
     ///
     /// Do note that if we create 4 billion windows there may be a collision.
     pub fn next() -> WindowId {
-        let id = WINDOW_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let id = unsafe { WINDOW_ID_COUNTER }; ////
+        unsafe { WINDOW_ID_COUNTER += 1 }; ////    
+        ////let id = WINDOW_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
         WindowId(id)
     }
 }

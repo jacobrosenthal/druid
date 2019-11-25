@@ -14,11 +14,13 @@
 
 //! A widget that arranges its children in a one-dimensional array.
 
-use crate::kurbo::{Point, Rect, Size};
+use core::marker::PhantomData; ////
+use crate::kurbo::{Point, Rect, Size}; ////
 
 use crate::{
     BaseState, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, PaintCtx, UpdateCtx, Widget,
     WidgetPod,
+    Window, WindowType, WindowBox, widget::{WidgetBox, WidgetType}, ////
 };
 
 /// A builder for a row widget that can contain flex children.
@@ -36,18 +38,28 @@ pub struct Row;
 /// [`Flex`]: struct.Flex.html
 pub struct Column;
 
-/// A container with either horizontal or vertical layout.
-pub struct Flex<T: Data> {
-    direction: Axis,
+type MaxWidgets = heapless::consts::U8; //// Max widgets per container
+type Vec<T> = heapless::Vec::<T, MaxWidgets>;
 
-    children: Vec<ChildWidget<T>>,
+/// A container with either horizontal or vertical layout.
+#[derive(Clone)] ////
+pub struct Flex<T: Data + 'static + Default> { ////
+////pub struct Flex<T: Data> {
+    id: u32, //// Unique Widget ID
+    direction: Axis,
+    children: Vec<ChildWidget<T>>, ////
+    ////children: Vec<ChildWidget<T>>,
 }
 
-struct ChildWidget<T: Data> {
-    widget: WidgetPod<T, Box<dyn Widget<T>>>,
+#[derive(Clone)] ////
+struct ChildWidget<T: Data + 'static + Default> { ////
+////struct ChildWidget<T: Data> {
+    widget: WidgetPod<T, WidgetBox<T>>, ////
+    ////widget: WidgetPod<T, Box<dyn Widget<T>>>,
     params: Params,
 }
 
+#[derive(Clone, Copy)] ////
 pub enum Axis {
     Horizontal,
     Vertical,
@@ -85,8 +97,10 @@ impl Row {
     /// Create a new row widget.
     ///
     /// The child widgets are laid out horizontally, from left to right.
-    pub fn new<T: Data>() -> Flex<T> {
+    pub fn new<T: Data + 'static + Default>() -> Flex<T> { ////
+    ////pub fn new<T: Data>() -> Flex<T> {
         Flex {
+            id: super::get_widget_id(), ////
             direction: Axis::Horizontal,
 
             children: Vec::new(),
@@ -98,8 +112,10 @@ impl Column {
     /// Create a new row widget.
     ///
     /// The child widgets are laid out vertically, from top to bottom.
-    pub fn new<T: Data>() -> Flex<T> {
+    pub fn new<T: Data + 'static + Default>() -> Flex<T> { ////
+    ////pub fn new<T: Data>() -> Flex<T> {
         Flex {
+            id: super::get_widget_id(), ////
             direction: Axis::Vertical,
 
             children: Vec::new(),
@@ -107,7 +123,8 @@ impl Column {
     }
 }
 
-impl<T: Data> Flex<T> {
+impl<T: Data + 'static + Default> Flex<T> { ////
+////impl<T: Data> Flex<T> {
     /// Add a child widget.
     ///
     /// If `flex` is zero, then the child is non-flex. It is given the same
@@ -117,17 +134,24 @@ impl<T: Data> Flex<T> {
     /// If `flex` is non-zero, then all the space left over after layout of
     /// the non-flex children is divided up, in proportion to the `flex` value,
     /// among the flex children.
-    pub fn add_child(&mut self, child: impl Widget<T> + 'static, flex: f64) {
+    pub fn add_child<W: Widget<T> + Clone>(&mut self, child: W, flex: f64) { ////
+    ////pub fn add_child(&mut self, child: impl Widget<T> + 'static, flex: f64) {
         let params = Params { flex };
         let child = ChildWidget {
-            widget: WidgetPod::new(child).boxed(),
+            widget: WidgetPod::new( ////
+                WidgetBox::<T>::new(child)
+            ),
+            ////widget: WidgetPod::new(child).boxed(),
             params,
         };
-        self.children.push(child);
+        self.children.push(child)
+            .expect("add child fail"); ////
+        ////self.children.push(child);
     }
 }
 
-impl<T: Data> Widget<T> for Flex<T> {
+impl<T: Data + 'static + Default> Widget<T> for Flex<T> { ////
+////impl<T: Data> Widget<T> for Flex<T> {
     fn paint(&mut self, paint_ctx: &mut PaintCtx, _base_state: &BaseState, data: &T, env: &Env) {
         for child in &mut self.children {
             child.widget.paint_with_offset(paint_ctx, data, env);
@@ -151,11 +175,13 @@ impl<T: Data> Widget<T> for Flex<T> {
                 let child_bc = match self.direction {
                     Axis::Horizontal => BoxConstraints::new(
                         Size::new(0.0, bc.min().height),
-                        Size::new(std::f64::INFINITY, bc.max.height),
+                        Size::new(core::f64::INFINITY, bc.max.height), ////
+                        ////Size::new(std::f64::INFINITY, bc.max.height),
                     ),
                     Axis::Vertical => BoxConstraints::new(
                         Size::new(bc.min().width, 0.0),
-                        Size::new(bc.max().width, std::f64::INFINITY),
+                        Size::new(bc.max().width, core::f64::INFINITY), ////
+                        ////Size::new(bc.max().width, std::f64::INFINITY),
                     ),
                 };
                 let child_size = child.widget.layout(layout_ctx, &child_bc, data, env);
@@ -207,7 +233,7 @@ impl<T: Data> Widget<T> for Flex<T> {
         }
 
         if flex_sum > 0.0 && total_major.is_infinite() {
-            log::warn!("A child of Flex is flex, but Flex is unbounded.")
+            ////log::warn!("A child of Flex is flex, but Flex is unbounded.")
         }
 
         if flex_sum > 0.0 {
@@ -219,15 +245,43 @@ impl<T: Data> Widget<T> for Flex<T> {
         Size::new(width, height)
     }
 
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &mut T, env: &Env) { ////
+    ////fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         for child in &mut self.children {
             child.widget.event(ctx, event, data, env);
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: Option<&T>, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx<T>, _old_data: Option<&T>, data: &T, env: &Env) { ////
+    ////fn update(&mut self, ctx: &mut UpdateCtx, _old_data: Option<&T>, data: &T, env: &Env) {
+        //cortex_m::asm::bkpt(); ////
         for child in &mut self.children {
             child.widget.update(ctx, data, env);
         }
+    }
+
+    fn to_type(self) -> WidgetType<T> { ////
+        WidgetType::Flex(self)
+    }
+
+    fn new_window(self) -> WindowBox<T> { ////
+        let window = Window::new(self);
+        let window_box = WindowBox(
+            WindowType::Flex(window),
+            //PhantomData,
+        );
+        window_box
+    }
+
+    fn get_id(self) -> u32 { ////
+        self.id
+    }
+}
+
+/// Implement formatted output for ChildWidget
+impl<T: Data + Default> core::fmt::Debug for ChildWidget<T> { ////
+    fn fmt(&self, _fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        //  TODO
+        Ok(())
     }
 }

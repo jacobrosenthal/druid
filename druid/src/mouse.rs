@@ -14,8 +14,8 @@
 
 //! The mousey bits
 
-use crate::kurbo::Point;
-use crate::{KeyModifiers, MouseButton};
+use crate::kurbo::Point; ////
+////use crate::{KeyModifiers, MouseButton};
 
 /// The state of the mouse for a click, mouse-up, or move event.
 ///
@@ -27,30 +27,30 @@ pub struct MouseEvent {
     pub pos: Point,
     /// The position of the mouse in the coordinate space of the window.
     pub window_pos: Point,
-    /// Keyboard modifiers at the time of the mouse event.
-    pub mods: KeyModifiers,
+    /////// Keyboard modifiers at the time of the mouse event.
+    ////pub mods: KeyModifiers,
     /// The number of mouse clicks associated with this event. This will always
     /// be `0` for a mouse-up event.
     pub count: u32,
-    /// The currently pressed button in the case of a move or click event,
-    /// or the released button in the case of a mouse-up event.
-    pub button: MouseButton,
+    /////// The currently pressed button in the case of a move or click event,
+    /////// or the released button in the case of a mouse-up event.
+    ////pub button: MouseButton,
 }
 
 impl From<druid_shell::MouseEvent> for MouseEvent {
     fn from(src: druid_shell::MouseEvent) -> MouseEvent {
         let druid_shell::MouseEvent {
             pos,
-            mods,
+            ////mods,
             count,
             button,
         } = src;
         MouseEvent {
             pos,
             window_pos: pos,
-            mods,
+            ////mods,
             count,
-            button,
+            ////button,
         }
     }
 }

@@ -14,6 +14,19 @@
 
 //! Common widgets.
 
+/// Unique Widget ID
+static mut WIDGET_ID: u32 = 0; ////
+
+/// Assign a unique Widget ID
+fn get_widget_id() -> u32 { ////
+    let id = unsafe { WIDGET_ID };
+    unsafe { WIDGET_ID += 1; }
+    id
+}
+
+mod widgetbox; ////
+pub use crate::widget::widgetbox::{WidgetBox, WidgetType}; ////
+
 mod align;
 pub use crate::widget::align::Align;
 
@@ -21,10 +34,12 @@ mod button;
 pub use crate::widget::button::Button;
 
 mod label;
-pub use crate::widget::label::{DynLabel, Label, LabelText};
+pub use crate::widget::label::{/* DynLabel, */ Label, LabelText};////
 
+/* ////
 mod either;
 pub use crate::widget::either::Either;
+*/ ////
 
 mod flex;
 pub use crate::widget::flex::{Column, Flex, Row};
@@ -32,6 +47,7 @@ pub use crate::widget::flex::{Column, Flex, Row};
 mod padding;
 pub use crate::widget::padding::Padding;
 
+/* ////
 mod scroll;
 pub use crate::widget::scroll::Scroll;
 
@@ -70,3 +86,4 @@ pub use widget_ext::WidgetExt;
 
 mod list;
 pub use crate::widget::list::{List, ListIter};
+*/

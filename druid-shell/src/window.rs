@@ -16,20 +16,21 @@
 
 #![allow(deprecated)] // for the three items that have moved
 
-use std::any::Any;
+////use std::any::Any;
+use core::marker::PhantomData; ////
 
-use crate::dialog::{FileDialogOptions, FileInfo};
+////use crate::dialog::{FileDialogOptions, FileInfo};
 use crate::error::Error;
-use crate::keyboard::{KeyEvent, KeyModifiers};
+////use crate::keyboard::{KeyEvent, KeyModifiers};
 use crate::kurbo::{Point, Size, Vec2};
-use crate::menu::Menu;
+////use crate::menu::Menu;
 use crate::mouse::{Cursor, MouseEvent};
 use crate::platform::window as platform;
 
 // It's possible we'll want to make this type alias at a lower level,
 // see https://github.com/linebender/piet/pull/37 for more discussion.
 /// The platform text factory, reexported from piet.
-pub type Text<'a> = <piet_common::Piet<'a> as piet_common::RenderContext>::Text;
+pub type Text = <piet_common::Piet as piet_common::RenderContext>::Text;
 
 /// A token that uniquely identifies a running timer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -49,31 +50,36 @@ impl TimerToken {
     }
 }
 
-//NOTE: this has a From<platform::Handle> impl for construction
-/// A handle that can enqueue tasks on the window loop.
-#[derive(Clone)]
-pub struct IdleHandle(platform::IdleHandle);
+/* ////
+    //NOTE: this has a From<platform::Handle> impl for construction
+    /// A handle that can enqueue tasks on the window loop.
+    #[derive(Clone)]
+    pub struct IdleHandle(platform::IdleHandle);
 
-impl IdleHandle {
-    /// Add an idle handler, which is called (once) when the message loop
-    /// is empty. The idle handler will be run from the main UI thread, and
-    /// won't be scheduled if the associated view has been dropped.
-    ///
-    /// Note: the name "idle" suggests that it will be scheduled with a lower
-    /// priority than other UI events, but that's not necessarily the case.
-    pub fn add_idle<F>(&self, callback: F)
-    where
-        F: FnOnce(&dyn Any) + Send + 'static,
-    {
-        self.0.add_idle(callback)
+    impl IdleHandle {
+        /// Add an idle handler, which is called (once) when the message loop
+        /// is empty. The idle handler will be run from the main UI thread, and
+        /// won't be scheduled if the associated view has been dropped.
+        ///
+        /// Note: the name "idle" suggests that it will be scheduled with a lower
+        /// priority than other UI events, but that's not necessarily the case.
+        pub fn add_idle<F>(&self, callback: F)
+        where
+            F: FnOnce(&dyn Any) + Send + 'static,
+        {
+            self.0.add_idle(callback)
+        }
     }
-}
+*/ ////
 
 /// A handle to a platform window object.
 #[derive(Clone, Default)]
-pub struct WindowHandle(platform::WindowHandle);
+pub struct WindowHandle<THandler: WinHandler<THandler> + Clone + Default> (  ////  THandler is DruidHandler<T: Data + 'static>
+    pub platform::WindowHandle<THandler>
+);
+////pub struct WindowHandle(platform::WindowHandle);
 
-impl WindowHandle {
+impl<THandler: WinHandler<THandler> + Clone + Default> WindowHandle<THandler> {  ////  THandler is DruidHandler<T: Data + 'static>
     /// Make this window visible.
     ///
     /// This is part of the initialization process; it should only be called
@@ -97,51 +103,62 @@ impl WindowHandle {
         self.0.invalidate()
     }
 
-    /// Set the title for this menu.
-    pub fn set_title(&self, title: &str) {
-        self.0.set_title(title)
-    }
+    /* ////
+        /// Set the title for this menu.
+        pub fn set_title(&self, title: &str) {
+            self.0.set_title(title)
+        }
 
-    /// Set the top-level menu for this window.
-    pub fn set_menu(&self, menu: Menu) {
-        self.0.set_menu(menu.into_inner())
-    }
+        /// Set the top-level menu for this window.
+        pub fn set_menu(&self, menu: Menu) {
+            self.0.set_menu(menu.into_inner())
+        }
 
-    /// Display a pop-up menu at the given position.
-    ///
-    /// `Point` is in the coordinate space of the window.
-    pub fn show_context_menu(&self, menu: Menu, pos: Point) {
-        self.0.show_context_menu(menu.into_inner(), pos)
-    }
+        /// Display a pop-up menu at the given position.
+        ///
+        /// `Point` is in the coordinate space of the window.
+        pub fn show_context_menu(&self, menu: Menu, pos: Point) {
+            self.0.show_context_menu(menu.into_inner(), pos)
+        }
 
-    /// Get a handle that can be used to schedule an idle task.
-    pub fn get_idle_handle(&self) -> Option<IdleHandle> {
-        self.0.get_idle_handle().map(IdleHandle)
-    }
+        /// Get a handle that can be used to schedule an idle task.
+        pub fn get_idle_handle(&self) -> Option<IdleHandle> {
+            self.0.get_idle_handle().map(IdleHandle)
+        }
 
-    /// Get the dpi of the window.
-    ///
-    /// TODO: we want to migrate this from dpi (with 96 as nominal) to a scale
-    /// factor (with 1 as nominal).
-    pub fn get_dpi(&self) -> f32 {
-        self.0.get_dpi()
-    }
+        /// Get the dpi of the window.
+        ///
+        /// TODO: we want to migrate this from dpi (with 96 as nominal) to a scale
+        /// factor (with 1 as nominal).
+        pub fn get_dpi(&self) -> f32 {
+            self.0.get_dpi()
+        }
+    */ ////
 }
 
 /// A builder type for creating new windows.
-pub struct WindowBuilder(platform::WindowBuilder);
+pub struct WindowBuilder<THandler: WinHandler<THandler>>(  ////  THandler is DruidHandler<T: Data + 'static>
+    platform::WindowBuilder<THandler>, ////
+    PhantomData<THandler>,  ////  Needed to do compile-time checking for `THandler`
+);
+////pub struct WindowBuilder(platform::WindowBuilder);
 
-impl WindowBuilder {
+impl<THandler: WinHandler<THandler> + Clone + Default> WindowBuilder<THandler> { ////  THandler is DruidHandler<T: Data + 'static>
     /// Create a new `WindowBuilder`
-    pub fn new() -> WindowBuilder {
-        WindowBuilder(platform::WindowBuilder::new())
+    pub fn new() -> Self { ////
+    ////pub fn new() -> WindowBuilder {
+        WindowBuilder(
+            platform::WindowBuilder::new(),
+            PhantomData
+        )
     }
 
     /// Set the [`WinHandler`]. This is the object that will receive
     /// callbacks from this window.
     ///
     /// [`WinHandler`]: trait.WinHandler.html
-    pub fn set_handler(&mut self, handler: Box<dyn WinHandler>) {
+    pub fn set_handler(&mut self, handler: THandler) { ////
+    ////pub fn set_handler(&mut self, handler: Box<dyn WinHandler>) {
         self.0.set_handler(handler)
     }
 
@@ -150,55 +167,60 @@ impl WindowBuilder {
         self.0.set_size(size)
     }
 
-    /// Set the window's initial title.
-    pub fn set_title(&mut self, title: impl Into<String>) {
-        self.0.set_title(title)
-    }
+    /* ////
+        /// Set the window's initial title.
+        pub fn set_title(&mut self, title: impl Into<String>) {
+            self.0.set_title(title)
+        }
 
-    /// Set the window's menu.
-    pub fn set_menu(&mut self, menu: Menu) {
-        self.0.set_menu(menu.into_inner())
-    }
+        /// Set the window's menu.
+        pub fn set_menu(&mut self, menu: Menu) {
+            self.0.set_menu(menu.into_inner())
+        }
+    */ ////
 
     /// Attempt to construct the platform window.
     ///
     /// If this fails, your application should exit.
-    pub fn build(self) -> Result<WindowHandle, Error> {
+    pub fn build(self) -> Result<WindowHandle<THandler>, Error> { ////
+    ////pub fn build(self) -> Result<WindowHandle, Error> {
         self.0.build().map(WindowHandle).map_err(Into::into)
     }
 }
 
 /// A context supplied to most `WinHandler` methods.
-pub trait WinCtx<'a> {
+pub trait WinCtx {
     /// Invalidate the entire window.
     ///
     /// TODO: finer grained invalidation.
     fn invalidate(&mut self);
 
     /// Get a reference to an object that can do text layout.
-    fn text_factory(&mut self) -> &mut Text<'a>;
+    fn text_factory(&mut self) -> &mut Text;
 
     /// Set the cursor icon.
     fn set_cursor(&mut self, cursor: &Cursor);
 
-    /// Schedule a timer.
-    ///
-    /// This causes a [`WinHandler::timer()`] call at the deadline. The
-    /// return value is a token that can be used to associate the request
-    /// with the handler call.
-    ///
-    /// Note that this is not a precise timer. On Windows, the typical
-    /// resolution is around 10ms. Therefore, it's best used for things
-    /// like blinking a cursor or triggering tooltips, not for anything
-    /// requiring precision.
-    ///
-    /// [`WinHandler::timer()`]: trait.WinHandler.html#tymethod.timer
-    fn request_timer(&mut self, deadline: std::time::Instant) -> TimerToken;
+    /* ////
+        /// Schedule a timer.
+        ///
+        /// This causes a [`WinHandler::timer()`] call at the deadline. The
+        /// return value is a token that can be used to associate the request
+        /// with the handler call.
+        ///
+        /// Note that this is not a precise timer. On Windows, the typical
+        /// resolution is around 10ms. Therefore, it's best used for things
+        /// like blinking a cursor or triggering tooltips, not for anything
+        /// requiring precision.
+        ///
+        /// [`WinHandler::timer()`]: trait.WinHandler.html#tymethod.timer
+        fn request_timer(&mut self, deadline: std::time::Instant) -> TimerToken;
 
-    /// Prompt the user to chose a file to open.
-    ///
-    /// Blocks while the user picks the file.
-    fn open_file_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo>;
+        /// Prompt the user to chose a file to open.
+        ///
+        /// Blocks while the user picks the file.
+        fn open_file_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo>;
+    */ ////
 }
 
 /// App behavior, supplied by the app.
@@ -207,10 +229,11 @@ pub trait WinCtx<'a> {
 /// The methods are non-mut because the window procedure can be called
 /// recursively; implementers are expected to use `RefCell` or the like,
 /// but should be careful to keep the lifetime of the borrow short.
-pub trait WinHandler {
+pub trait WinHandler<THandler> {  ////  THandler is DruidHandler<T: Data + 'static>
+////pub trait WinHandler {
     /// Provide the handler with a handle to the window so that it can
     /// invalidate or make other requests.
-    fn connect(&mut self, handle: &WindowHandle);
+    ////TODO1 fn connect(&mut self, handle: &WindowHandle);
 
     /// Called when the size of the window is changed. Note that size
     /// is in physical pixels.
@@ -222,41 +245,43 @@ pub trait WinHandler {
     /// should be scheduled for the next animation frame.
     fn paint(&mut self, piet: &mut piet_common::Piet, ctx: &mut dyn WinCtx) -> bool;
 
-    /// Called when the resources need to be rebuilt.
-    ///
-    /// Discussion: this function is mostly motivated by using
-    /// `GenericRenderTarget` on Direct2D. If we move to `DeviceContext`
-    /// instead, then it's possible we don't need this.
-    #[allow(unused_variables)]
-    fn rebuild_resources(&mut self, ctx: &mut dyn WinCtx) {}
+    /* ////
+        /// Called when the resources need to be rebuilt.
+        ///
+        /// Discussion: this function is mostly motivated by using
+        /// `GenericRenderTarget` on Direct2D. If we move to `DeviceContext`
+        /// instead, then it's possible we don't need this.
+        #[allow(unused_variables)]
+        fn rebuild_resources(&mut self, ctx: &mut dyn WinCtx) {}
 
-    /// Called when a menu item is selected.
-    #[allow(unused_variables)]
-    fn command(&mut self, id: u32, ctx: &mut dyn WinCtx) {}
+        /// Called when a menu item is selected.
+        #[allow(unused_variables)]
+        fn command(&mut self, id: u32, ctx: &mut dyn WinCtx) {}
 
-    /// Called on a key down event.
-    ///
-    /// Return `true` if the event is handled.
-    #[allow(unused_variables)]
-    fn key_down(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) -> bool {
-        false
-    }
+        /// Called on a key down event.
+        ///
+        /// Return `true` if the event is handled.
+        #[allow(unused_variables)]
+        fn key_down(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) -> bool {
+            false
+        }
 
-    /// Called when a key is released. This corresponds to the WM_KEYUP message
-    /// on Windows, or keyUp(withEvent:) on macOS.
-    #[allow(unused_variables)]
-    fn key_up(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) {}
+        /// Called when a key is released. This corresponds to the WM_KEYUP message
+        /// on Windows, or keyUp(withEvent:) on macOS.
+        #[allow(unused_variables)]
+        fn key_up(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) {}
 
-    /// Called on a mouse wheel event.
-    ///
-    /// The polarity is the amount to be added to the scroll position,
-    /// in other words the opposite of the direction the content should
-    /// move on scrolling. This polarity is consistent with the
-    /// deltaX and deltaY values in a web [WheelEvent].
-    ///
-    /// [WheelEvent]: https://w3c.github.io/uievents/#event-type-wheel
-    #[allow(unused_variables)]
-    fn wheel(&mut self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx) {}
+        /// Called on a mouse wheel event.
+        ///
+        /// The polarity is the amount to be added to the scroll position,
+        /// in other words the opposite of the direction the content should
+        /// move on scrolling. This polarity is consistent with the
+        /// deltaX and deltaY values in a web [WheelEvent].
+        ///
+        /// [WheelEvent]: https://w3c.github.io/uievents/#event-type-wheel
+        #[allow(unused_variables)]
+        fn wheel(&mut self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx) {}
+    */ ////
 
     /// Called when the mouse moves.
     #[allow(unused_variables)]
@@ -290,12 +315,22 @@ pub trait WinHandler {
     #[allow(unused_variables)]
     fn destroy(&mut self, ctx: &mut dyn WinCtx) {}
 
-    /// Get a reference to the handler state. Used mostly by idle handlers.
-    fn as_any(&mut self) -> &mut dyn Any;
+    /// Return the Window ID for this WinHandler
+    fn get_window_id(&self) -> u32; ////
+
+    /// Add a Window Handler for the Data type
+    fn add_handler(&self, window_id: u32, handler: THandler); ////
+
+    /* ////
+        /// Get a reference to the handler state. Used mostly by idle handlers.
+        fn as_any(&mut self) -> &mut dyn Any;
+    */ ////
 }
 
-impl From<platform::WindowHandle> for WindowHandle {
-    fn from(src: platform::WindowHandle) -> WindowHandle {
+impl<THandler: WinHandler<THandler> + Clone + Default> From<platform::WindowHandle<THandler>> for WindowHandle<THandler> { ////  THandler is DruidHandler<T: Data + 'static>
+////impl From<platform::WindowHandle> for WindowHandle {
+    fn from(src: platform::WindowHandle<THandler>) -> WindowHandle<THandler> { ////
+    ////fn from(src: platform::WindowHandle) -> WindowHandle {
         WindowHandle(src)
     }
 }

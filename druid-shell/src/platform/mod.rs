@@ -24,5 +24,8 @@ cfg_if::cfg_if! {
     } else if #[cfg(any(feature = "use_gtk", target_os = "linux"))] {
         mod gtk;
         pub use self::gtk::*;
+    } else if #[cfg(all(target_arch = "arm", target_os = "none"))] {
+        mod embedded;
+        pub use self::embedded::*;
     }
 }

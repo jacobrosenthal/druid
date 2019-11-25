@@ -14,55 +14,69 @@
 
 //! Simple data-oriented GUI.
 
-#![deny(intra_doc_link_resolution_failure, unsafe_code)]
+#![no_std] ////
+#![feature(specialization)] ////
+#![deny(intra_doc_link_resolution_failure)] ////
+////#![deny(intra_doc_link_resolution_failure, unsafe_code)]
 #![allow(clippy::new_ret_no_self)]
 
 use druid_shell as shell;
 pub use druid_shell::{kurbo, piet};
 
 mod app;
-mod app_delegate;
-mod command;
+mod argvalue; ////
+////mod app_delegate;
+////mod command;
 mod data;
 mod env;
 mod event;
-mod lens;
+////mod lens;
 mod localization;
-mod menu;
+////mod menu;
 mod mouse;
-pub mod theme;
+////pub mod theme;
 pub mod widget;
 mod win_handler;
 mod window;
+mod windowbox; ////
 
+/*
 use std::collections::VecDeque;
 use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use log::{error, warn};
+*/
 
-use kurbo::{Affine, Point, Rect, Shape, Size, Vec2};
-use piet::{Piet, RenderContext};
+use core::marker::PhantomData; ////
+use kurbo::{Affine, Point, Rect, Shape, Size, Vec2}; ////
+use piet::{Piet, RenderContext}; ////
 
 // these are the types from shell that we expose; others we only use internally.
-pub use shell::{
-    Application, Clipboard, ClipboardFormat, Cursor, FileDialogOptions, FileDialogType, FileInfo,
-    FileSpec, FormatId, HotKey, KeyCode, KeyEvent, KeyModifiers, MouseButton, RawMods, SysMods,
-    Text, TimerToken, WinCtx, WindowHandle,
-};
+pub use shell::{ ////
+    /* Application, Clipboard, ClipboardFormat, Cursor, FileDialogOptions, FileDialogType, FileInfo,
+    FileSpec, FormatId, HotKey, KeyCode, KeyEvent, KeyModifiers, MouseButton, RawMods, SysMods, */
+    Text, /* TimerToken, */ WinCtx, WindowHandle,
+}; ////
 
 pub use app::{AppLauncher, WindowDesc};
-pub use app_delegate::{AppDelegate, DelegateCtx};
-pub use command::{sys as commands, Command, Selector};
+use argvalue::{ArgValue, ArgValues}; ////
+////pub use app_delegate::{AppDelegate, DelegateCtx};
+////pub use command::{sys as commands, Command, Selector};
 pub use data::Data;
-pub use env::{Env, Key, Value};
-pub use event::{Event, WheelEvent};
-pub use lens::{Lens, LensWrap};
+pub use env::{Env, Key, Value}; ////
+pub use event::{Event, /* WheelEvent */}; ////
+////pub use event::{Event, WheelEvent};
+////pub use lens::{Lens, LensWrap};
 pub use localization::LocalizedString;
-pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
+////pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
 pub use mouse::MouseEvent;
-pub use win_handler::DruidHandler;
-pub use window::{Window, WindowId};
+pub use win_handler::{DruidHandler, GlobalWindows, handle_touch}; ////
+pub use window::{Window, WindowId}; ////
+pub use windowbox::{WindowBox, WindowType}; ////
+use crate::widget::{WidgetType, WidgetBox}; ////
+use win_handler::AppState; ////
+pub use shell::{start_display, test_display, show_touch}; ////
 
 /// A container for one widget in the hierarchy.
 ///
@@ -76,15 +90,19 @@ pub use window::{Window, WindowId};
 /// widget can process a diff between the old value and the new.
 ///
 /// [`update`]: trait.Widget.html#tymethod.update
-pub struct WidgetPod<T: Data, W: Widget<T>> {
+#[derive(Clone, Copy, Default)] ////
+pub struct WidgetPod<T: Data + 'static + Default, W: Widget<T>> { ////
+////pub struct WidgetPod<T: Data, W: Widget<T>> {
     state: BaseState,
     old_data: Option<T>,
     env: Option<Env>,
     inner: W,
 }
 
+/* ////
 /// Convenience type for dynamic boxed widget.
 pub type BoxedWidget<T> = WidgetPod<T, Box<dyn Widget<T>>>;
+*/ ////
 
 /// Generic state for all widgets in the hierarchy.
 ///
@@ -101,7 +119,8 @@ pub type BoxedWidget<T> = WidgetPod<T, Box<dyn Widget<T>>>;
 ///
 /// [`paint`]: trait.Widget.html#tymethod.paint
 /// [`WidgetPod`]: struct.WidgetPod.html
-#[derive(Default)]
+#[derive(Clone, Copy, Default)] ////
+////#[derive(Default)]
 pub struct BaseState {
     layout_rect: Rect,
 
@@ -171,7 +190,8 @@ pub struct BaseState {
 /// [`update`]: #tymethod.update
 /// [`Data`]: trait.Data.html
 /// [`WidgetPod`]: struct.WidgetPod.html
-pub trait Widget<T> {
+pub trait Widget<T: Data + 'static + Default> { ////
+////pub trait Widget<T> {
     /// Paint the widget appearance.
     ///
     /// The widget calls methods on the `render_ctx` field of the
@@ -216,7 +236,8 @@ pub trait Widget<T> {
     /// [`Event`]: struct.Event.html
     /// [`EventCtx`]: struct.EventCtx.html
     /// [`Command`]: struct.Command.html
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env);
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &mut T, env: &Env); ////
+    ////fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env);
 
     /// Handle a change of data.
     ///
@@ -233,9 +254,20 @@ pub trait Widget<T> {
 
     // Consider a no-op default impl. One reason against is that containers might
     // inadvertently forget to propagate.
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: Option<&T>, data: &T, env: &Env);
+    fn update(&mut self, ctx: &mut UpdateCtx<T>, old_data: Option<&T>, data: &T, env: &Env); ////
+    ////fn update(&mut self, ctx: &mut UpdateCtx, old_data: Option<&T>, data: &T, env: &Env);
+
+    /// Wrap this `Widget` in a `WidgetType` enum for boxing by `WidgetBox`
+    fn to_type(self) -> WidgetType<T>; ////
+
+    /// Wrap this `Widget` in a `WindowBox` as the root of the `Window`
+    fn new_window(self) -> WindowBox<T>; ////
+
+    /// Return the unique ID for this `Widget`
+    fn get_id(self) -> u32; ////
 }
 
+/*
 // TODO: explore getting rid of this (ie be consistent about using
 // `dyn Widget` only).
 impl<T> Widget<T> for Box<dyn Widget<T>> {
@@ -255,6 +287,7 @@ impl<T> Widget<T> for Box<dyn Widget<T>> {
         self.deref_mut().update(ctx, old_data, data, env);
     }
 }
+*/
 
 /// A context passed to paint methods of widgets.
 ///
@@ -263,9 +296,9 @@ impl<T> Widget<T> for Box<dyn Widget<T>> {
 /// This struct is expected to grow, for example to include the
 /// "damage region" indicating that only a subset of the entire
 /// widget hierarchy needs repainting.
-pub struct PaintCtx<'a, 'b: 'a> {
+pub struct PaintCtx<'a> {
     /// The render context for actually painting.
-    pub render_ctx: &'a mut Piet<'b>,
+    pub render_ctx: &'a mut Piet,
     pub window_id: WindowId,
     /// The currently visible region.
     pub(crate) region: Region,
@@ -294,6 +327,7 @@ impl From<Rect> for Region {
     }
 }
 
+/* ////
 impl<'a, 'b: 'a> Deref for PaintCtx<'a, 'b> {
     type Target = Piet<'b>;
 
@@ -307,8 +341,9 @@ impl<'a, 'b: 'a> DerefMut for PaintCtx<'a, 'b> {
         self.render_ctx
     }
 }
+*/ ////
 
-impl<'a, 'b: 'a> PaintCtx<'a, 'b> {
+impl<'a> PaintCtx<'a> {
     /// Returns the currently visible [`Region`].
     ///
     /// [`Region`]: struct.Region.html
@@ -342,8 +377,8 @@ impl<'a, 'b: 'a> PaintCtx<'a, 'b> {
 /// As of now, the main service provided is access to a factory for
 /// creating text layout objects, which are likely to be useful
 /// during widget layout.
-pub struct LayoutCtx<'a, 'b: 'a> {
-    text_factory: &'a mut Text<'b>,
+pub struct LayoutCtx<'a> {
+    text_factory: &'a mut Text,
     window_id: WindowId,
 }
 
@@ -353,16 +388,18 @@ pub struct LayoutCtx<'a, 'b: 'a> {
 /// in the widget's appearance, to schedule a repaint.
 ///
 /// [`invalidate`]: #method.invalidate
-pub struct EventCtx<'a, 'b> {
+pub struct EventCtx<'a, D: Data + 'static + Default> { ////
+////pub struct EventCtx<'a, 'b> {
     // Note: there's a bunch of state that's just passed down, might
     // want to group that into a single struct.
-    win_ctx: &'a mut dyn WinCtx<'b>,
-    cursor: &'a mut Option<Cursor>,
+    win_ctx: &'a mut dyn WinCtx,
+    /////cursor: &'a mut Option<Cursor>,
     /// Commands submitted to be run after this event.
-    command_queue: &'a mut VecDeque<(WindowId, Command)>,
+    ////command_queue: &'a mut VecDeque<(WindowId, Command)>,
     window_id: WindowId,
     // TODO: migrate most usage of `WindowHandle` to `WinCtx` instead.
-    window: &'a WindowHandle,
+    window: &'a WindowHandle<DruidHandler<D>>, ////
+    ////window: &'a WindowHandle,
     base_state: &'a mut BaseState,
     had_active: bool,
     is_handled: bool,
@@ -375,9 +412,11 @@ pub struct EventCtx<'a, 'b> {
 /// in the widget's appearance, to schedule a repaint.
 ///
 /// [`invalidate`]: #method.invalidate
-pub struct UpdateCtx<'a, 'b: 'a> {
-    text_factory: &'a mut Text<'b>,
-    window: &'a WindowHandle,
+pub struct UpdateCtx<'a, D: Data + 'static + Default> { ////
+////pub struct UpdateCtx<'a, 'b: 'a> {
+    text_factory: &'a mut Text,
+    window: &'a WindowHandle<DruidHandler<D>>, ////
+    ////window: &'a WindowHandle,
     // Discussion: we probably want to propagate more fine-grained
     // invalidations, which would mean a structure very much like
     // `EventCtx` (and possibly using the same structure). But for
@@ -406,7 +445,8 @@ pub struct BoxConstraints {
     max: Size,
 }
 
-impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
+impl<T: Data + 'static + Default, W: Widget<T>> WidgetPod<T, W> { ////
+////impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// Create a new widget pod.
     ///
     /// In a widget hierarchy, each widget is wrapped in a `WidgetPod`
@@ -437,6 +477,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// implementation.
     pub fn set_layout_rect(&mut self, layout_rect: Rect) {
         self.state.layout_rect = layout_rect;
+        //cortex_m::asm::bkpt(); ////
     }
 
     /// Get the layout rectangle.
@@ -485,16 +526,21 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         paint_if_not_visible: bool,
     ) {
         if !paint_if_not_visible && !paint_ctx.region().intersects(self.state.layout_rect) {
+            cortex_m::asm::bkpt(); ////
             return;
         }
+        //cortex_m::asm::bkpt(); ////
 
-        if let Err(e) = paint_ctx.save() {
-            error!("saving render context failed: {:?}", e);
+        if let Err(e) = paint_ctx.render_ctx.save() { ////
+        ////if let Err(e) = paint_ctx.save() {
+            assert!(false, "save context fail"); ////
+            ////error!("saving render context failed: {:?}", e);
             return;
         }
 
         let layout_origin = self.state.layout_rect.origin().to_vec2();
-        paint_ctx.transform(Affine::translate(layout_origin));
+        paint_ctx.render_ctx.transform(Affine::translate(layout_origin)); ////
+        ////paint_ctx.transform(Affine::translate(layout_origin));
 
         let visible = paint_ctx.region().to_rect() - layout_origin;
 
@@ -502,8 +548,10 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             self.inner.paint(ctx, &self.state, data, &env)
         });
 
-        if let Err(e) = paint_ctx.restore() {
-            error!("restoring render context failed: {:?}", e);
+        if let Err(e) = paint_ctx.render_ctx.restore() { ////
+        ////if let Err(e) = paint_ctx.restore() {
+            assert!(false, "restore context fail"); ////
+            ////error!("restoring render context failed: {:?}", e);
         }
     }
 
@@ -531,7 +579,8 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// the event.
     ///
     /// [`event`]: trait.Widget.html#method.event
-    pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    pub fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &mut T, env: &Env) { ////
+    ////pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         // TODO: factor as much logic as possible into monomorphic functions.
         if ctx.is_handled || !event.recurse() {
             // This function is called by containers to propagate an event from
@@ -542,8 +591,8 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         let had_active = self.state.has_active;
         let mut child_ctx = EventCtx {
             win_ctx: ctx.win_ctx,
-            cursor: ctx.cursor,
-            command_queue: ctx.command_queue,
+            ////cursor: ctx.cursor,
+            ////command_queue: ctx.command_queue,
             window: &ctx.window,
             window_id: ctx.window_id,
             base_state: &mut self.state,
@@ -556,10 +605,12 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         let mut recurse = true;
         let mut hot_changed = None;
         let child_event = match event {
+            /*
             Event::OpenFile(file) => {
                 recurse = ctx.is_root;
                 Event::OpenFile(file.clone())
             }
+            */
             Event::Size(size) => {
                 recurse = ctx.is_root;
                 Event::Size(*size)
@@ -587,6 +638,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 mouse_event.pos -= rect.origin().to_vec2();
                 Event::MouseMoved(mouse_event)
             }
+            /*
             Event::KeyDown(e) => {
                 recurse = child_ctx.base_state.has_focus;
                 Event::KeyDown(*e)
@@ -603,6 +655,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 recurse = had_active || child_ctx.base_state.is_hot;
                 Event::Wheel(wheel_event.clone())
             }
+            */
             Event::HotChanged(is_hot) => Event::HotChanged(*is_hot),
             Event::FocusChanged(_is_focused) => {
                 let had_focus = child_ctx.base_state.has_focus;
@@ -612,6 +665,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 recurse = focus || had_focus;
                 Event::FocusChanged(focus)
             }
+            /*
             Event::AnimFrame(interval) => {
                 recurse = child_ctx.base_state.request_anim;
                 child_ctx.base_state.request_anim = false;
@@ -622,6 +676,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 Event::Timer(*id)
             }
             Event::Command(cmd) => Event::Command(cmd.clone()),
+            */
         };
         child_ctx.base_state.needs_inval = false;
         if let Some(is_hot) = hot_changed {
@@ -649,7 +704,8 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// method.
     ///
     /// [`update`]: trait.Widget.html#method.update
-    pub fn update(&mut self, ctx: &mut UpdateCtx, data: &T, env: &Env) {
+    pub fn update(&mut self, ctx: &mut UpdateCtx<T>, data: &T, env: &Env) { ////
+    ////pub fn update(&mut self, ctx: &mut UpdateCtx, data: &T, env: &Env) {
         let data_same = if let Some(ref old_data) = self.old_data {
             old_data.same(data)
         } else {
@@ -670,6 +726,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     }
 }
 
+/* ////
 impl<T: Data, W: Widget<T> + 'static> WidgetPod<T, W> {
     /// Box the contained widget.
     ///
@@ -684,6 +741,7 @@ impl<T: Data, W: Widget<T> + 'static> WidgetPod<T, W> {
         }
     }
 }
+*/ ////
 
 impl BaseState {
     /// The "hot" (aka hover) status of a widget.
@@ -812,8 +870,8 @@ impl BoxConstraints {
             && 0.0 <= self.min.height
             && self.min.height <= self.max.height)
         {
-            warn!("Bad BoxConstraints passed to {}:", name);
-            warn!("{:?}", self);
+            ////warn!("Bad BoxConstraints passed to {}:", name);
+            ////warn!("{:?}", self);
         }
     }
 
@@ -833,7 +891,8 @@ impl BoxConstraints {
     }
 }
 
-impl<'a, 'b> EventCtx<'a, 'b> {
+impl<'a, D: Data + 'static + Default> EventCtx<'a, D> { ////
+////impl<'a, 'b> EventCtx<'a, 'b> {
     /// Invalidate.
     ///
     /// Right now, it just invalidates the entire window, but we'll want
@@ -848,10 +907,11 @@ impl<'a, 'b> EventCtx<'a, 'b> {
     }
 
     /// Get an object which can create text layouts.
-    pub fn text(&mut self) -> &mut Text<'b> {
+    pub fn text(&mut self) -> &mut Text {
         self.win_ctx.text_factory()
     }
 
+    /* ////
     /// Set the cursor icon.
     ///
     /// Call this when handling a mouse move event, to set the cursor for the
@@ -868,6 +928,7 @@ impl<'a, 'b> EventCtx<'a, 'b> {
     pub fn set_cursor(&mut self, cursor: &Cursor) {
         *self.cursor = Some(cursor.clone());
     }
+    */ ////
 
     /// Set the "active" state of the widget.
     ///
@@ -898,7 +959,8 @@ impl<'a, 'b> EventCtx<'a, 'b> {
     /// provided by the window handle in mutable contexts instead. If you're
     /// considering a new use of this method, try adding it to `WinCtx` and
     /// plumbing it through instead.
-    pub fn window(&self) -> &WindowHandle {
+    pub fn window(&self) -> &WindowHandle<DruidHandler<D>> { ////
+    ////pub fn window(&self) -> &WindowHandle {
         &self.window
     }
 
@@ -927,6 +989,7 @@ impl<'a, 'b> EventCtx<'a, 'b> {
         self.base_state.request_focus = true;
     }
 
+    /* ////
     /// Request an animation frame.
     pub fn request_anim_frame(&mut self) {
         self.base_state.request_anim = true;
@@ -940,12 +1003,14 @@ impl<'a, 'b> EventCtx<'a, 'b> {
         self.base_state.request_timer = true;
         self.win_ctx.request_timer(deadline)
     }
+    */ ////
 
     /// Returns the layout size of the current widget.
     pub fn size(&self) -> Size {
         self.base_state.size()
     }
 
+    /* ////
     /// Submit a [`Command`] to be run after this event is handled.
     ///
     /// Commands are run in the order they are submitted; all commands
@@ -962,6 +1027,7 @@ impl<'a, 'b> EventCtx<'a, 'b> {
         let window_id = window_id.into().unwrap_or(self.window_id);
         self.command_queue.push_back((window_id, command.into()))
     }
+    */ ////
 
     /// Get the window id.
     pub fn window_id(&self) -> WindowId {
@@ -969,9 +1035,9 @@ impl<'a, 'b> EventCtx<'a, 'b> {
     }
 }
 
-impl<'a, 'b> LayoutCtx<'a, 'b> {
+impl<'a, 'b> LayoutCtx<'a> {
     /// Get an object which can create text layouts.
-    pub fn text(&mut self) -> &mut Text<'b> {
+    pub fn text(&mut self) -> &mut Text {
         &mut self.text_factory
     }
 
@@ -981,7 +1047,8 @@ impl<'a, 'b> LayoutCtx<'a, 'b> {
     }
 }
 
-impl<'a, 'b> UpdateCtx<'a, 'b> {
+impl<'a, D: Data + 'static + Default> UpdateCtx<'a, D> {  ////
+////impl<'a, 'b> UpdateCtx<'a, 'b> {
     /// Invalidate.
     ///
     /// See [`EventCtx::invalidate`](struct.EventCtx.html#method.invalidate) for
@@ -991,7 +1058,7 @@ impl<'a, 'b> UpdateCtx<'a, 'b> {
     }
 
     /// Get an object which can create text layouts.
-    pub fn text(&mut self) -> &mut Text<'b> {
+    pub fn text(&mut self) -> &mut Text {
         self.text_factory
     }
 
@@ -1000,7 +1067,8 @@ impl<'a, 'b> UpdateCtx<'a, 'b> {
     /// Note: For the most part we're trying to migrate `WindowHandle`
     /// functionality to `WinCtx`, but the update flow is the exception, as
     /// it's shared across multiple windows.
-    pub fn window(&self) -> &WindowHandle {
+    pub fn window(&self) -> &WindowHandle<DruidHandler<D>> { ////
+    ////pub fn window(&self) -> &WindowHandle {
         &self.window
     }
 

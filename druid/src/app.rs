@@ -14,55 +14,80 @@
 
 //! Window building and app lifecycle.
 
+/* ////
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+*/ ////
 
+use core::marker::PhantomData; ////
 use crate::kurbo::Size;
-use crate::shell::{Application, Error as PlatformError, RunLoop, WindowBuilder, WindowHandle};
-use crate::win_handler::AppState;
-use crate::window::{Window, WindowId};
-use crate::{theme, AppDelegate, Data, DruidHandler, Env, LocalizedString, MenuDesc, Widget};
+use crate::shell::{Application, Error as PlatformError, /* RunLoop, */ WindowBuilder, WindowHandle};
+use crate::win_handler::{AppState, GlobalWindows};
+use crate::window::{Window, WindowId}; ////
+use crate::{/* theme, AppDelegate, */ Data, DruidHandler, Env, LocalizedString, /* MenuDesc, */ Widget, WindowBox}; ////
 
-/// A function that modifies the initial environment.
-type EnvSetupFn = dyn FnOnce(&mut Env);
+/////// A function that modifies the initial environment.
+////type EnvSetupFn = dyn FnOnce(&mut Env);
+
+type MaxWindows = heapless::consts::U2; //// Max number of windows
+type Vec<T> = heapless::Vec::<T, MaxWindows>; ////
 
 /// Handles initial setup of an application, and starts the runloop.
-pub struct AppLauncher<T> {
-    windows: Vec<WindowDesc<T>>,
+pub struct AppLauncher<T: Data + 'static + Default, W: Widget<T> + 'static> { ////
+////pub struct AppLauncher<T> {
+    windows: Vec<WindowDesc<T, W>>, ////
+    ////windows: Vec<WindowDesc<T>>,
+    phantom_data: PhantomData<T>,  //  Needed to do compile-time checking for `Data`
+    /* ////
     env_setup: Option<Box<EnvSetupFn>>,
     delegate: Option<Box<dyn AppDelegate<T>>>,
+    */ ////
 }
 
 /// A function that can create a widget.
-type WidgetBuilderFn<T> = dyn Fn() -> Box<dyn Widget<T>> + 'static;
+////type WidgetBuilderFn<W: Widget<T> + 'static> = fn() -> W; ////
+////type WidgetBuilderFn<T> = dyn Fn() -> Box<dyn Widget<T>> + 'static;
 
 /// A description of a window to be instantiated.
 ///
 /// This includes a function that can build the root widget, as well as other
 /// window properties such as the title.
-pub struct WindowDesc<T> {
-    pub(crate) root_builder: Arc<WidgetBuilderFn<T>>,
-    pub(crate) title: Option<LocalizedString<T>>,
+pub struct WindowDesc<T: Data + 'static + Default, W: Widget<T> + 'static> { ////
+    pub(crate) root_builder: fn() -> W, ////
+    ////pub(crate) root_builder: Arc<WidgetBuilderFn<T>>,
+    ////pub(crate) title: Option<LocalizedString<T>>,
     pub(crate) size: Option<Size>,
+    /* ////
     pub(crate) menu: Option<MenuDesc<T>>,
+    */ ////
     /// The `WindowId` that will be assigned to this window.
     ///
     /// This can be used to track a window from when it is launched and when
     /// it actually connects.
     pub id: WindowId,
+    phantom_data: PhantomData<T>,  //  Needed to do compile-time checking for `Data`
 }
 
-impl<T: Data + 'static> AppLauncher<T> {
+impl<T: Data + 'static + Default, W: Widget<T> + 'static> AppLauncher<T, W> { ////
     /// Create a new `AppLauncher` with the provided window.
-    pub fn with_window(window: WindowDesc<T>) -> Self {
+    pub fn with_window(window: WindowDesc<T, W>) -> Self { ////
+    ////pub fn with_window(window: WindowDesc<T>) -> Self {
+        let mut windows = Vec::new(); ////
+        windows.push(window)
+            .expect("with window failed"); ////
         AppLauncher {
-            windows: vec![window],
+            windows, ////
+            ////windows: vec![window],
+            phantom_data: PhantomData, ////
+            /*
             env_setup: None,
             delegate: None,
+            */
         }
     }
 
+    /*
     /// Provide an optional closure that will be given mutable access to
     /// the environment before launch.
     ///
@@ -79,12 +104,13 @@ impl<T: Data + 'static> AppLauncher<T> {
         self.delegate = Some(Box::new(delegate));
         self
     }
+    */
 
     /// Initialize a minimal logger for printing logs out to stderr.
     ///
     /// Meant for use during development only.
     pub fn use_simple_logger(self) -> Self {
-        simple_logger::init().ok();
+        ////simple_logger::init().ok();
         self
     }
 
@@ -94,48 +120,58 @@ impl<T: Data + 'static> AppLauncher<T> {
     /// a fatal error.
     pub fn launch(mut self, data: T) -> Result<(), PlatformError> {
         Application::init();
+        /* ////
         let mut main_loop = RunLoop::new();
         let mut env = theme::init();
         if let Some(f) = self.env_setup.take() {
             f(&mut env);
         }
+        */ ////
 
-        let state = AppState::new(data, env, self.delegate.take());
+        let mut state = AppState::<T>::new(); ////
+        state.set_data(data); ////
+        ////let state = AppState::new(data, env, self.delegate.take());
 
         for desc in self.windows {
-            let window = desc.build_native(&state)?;
+            let window = desc.build_native(&mut state)?;
             window.show();
         }
 
-        main_loop.run();
+        ////main_loop.run();
         Ok(())
     }
 }
 
-impl<T: Data + 'static> WindowDesc<T> {
+impl<T: Data + 'static + Default, W: Widget<T> + 'static> WindowDesc<T, W> { ////
     /// Create a new `WindowDesc`, taking a funciton that will generate the root
     /// [`Widget`] for this window.
     ///
     /// It is possible that a `WindowDesc` can be reused to launch multiple windows.
     ///
     /// [`Widget`]: trait.Widget.html
-    pub fn new<W, F>(root: F) -> WindowDesc<T>
-    where
-        W: Widget<T> + 'static,
-        F: Fn() -> W + 'static,
+    pub fn new(root: fn() -> W) -> WindowDesc<T, W> ////
+    ////pub fn new<W, F>(root: F) -> WindowDesc<T>
+    ////where
+        ////W: Widget<T> + 'static,
+        ////F: Fn() -> W + 'static,
     {
         // wrap this closure in another closure that dyns the result
         // this just makes our API slightly cleaner; callers don't need to explicitly box.
-        let root_builder: Arc<WidgetBuilderFn<T>> = Arc::new(move || Box::new(root()));
+        let root_builder = root; ////
+        ////let root_builder: Arc<WidgetBuilderFn<T>> = Arc::new(move || Box::new(root()));
         WindowDesc {
             root_builder,
-            title: None,
             size: None,
+            /* ////
+            title: None,
             menu: MenuDesc::platform_default(),
+            */ ////
             id: WindowId::next(),
+            phantom_data: PhantomData, ////
         }
     }
 
+    /* ////
     /// Set the title for this window. This is a [`LocalizedString`] that will
     /// be kept up to date as the application's state changes.
     ///
@@ -144,6 +180,7 @@ impl<T: Data + 'static> WindowDesc<T> {
         self.title = Some(title);
         self
     }
+    */ ////
 
     /// Set the window size at creation
     ///
@@ -159,8 +196,11 @@ impl<T: Data + 'static> WindowDesc<T> {
     /// Attempt to create a platform window from this `WindowDesc`.
     pub(crate) fn build_native(
         &self,
-        state: &Rc<RefCell<AppState<T>>>,
-    ) -> Result<WindowHandle, PlatformError> {
+        state: &mut AppState<T> ////
+        ////state: &Rc<RefCell<AppState<T>>>,
+    ) -> Result<WindowHandle<DruidHandler<T>>, PlatformError> { ////
+    ////) -> Result<WindowHandle, PlatformError> {
+        /* ////
         let mut title = self
             .title
             .clone()
@@ -170,30 +210,50 @@ impl<T: Data + 'static> WindowDesc<T> {
         let platform_menu = menu
             .as_mut()
             .map(|m| m.build_window_menu(&state.borrow().data, &state.borrow().env));
+        */ ////
 
-        let handler = DruidHandler::new_shared(state.clone(), self.id);
+        let mut handler: DruidHandler<T> = DruidHandler::new_shared(self.id); ////
+        ////let handler = DruidHandler::new_shared(state.clone(), self.id);
 
-        let mut builder = WindowBuilder::new();
-        builder.set_handler(Box::new(handler));
+        let mut builder: WindowBuilder<DruidHandler<T>> = WindowBuilder::new();
+        builder.set_handler(handler); ////
+        ////builder.set_handler(Box::new(handler));
         if let Some(size) = self.size {
             builder.set_size(size);
         }
+        /* ////
         builder.set_title(title.localized_str());
         if let Some(menu) = platform_menu {
             builder.set_menu(menu);
         }
+        */ ////
 
-        let root = (self.root_builder)();
+        let root_widget = (self.root_builder)(); ////
+        let root_box = root_widget.new_window(); ////
+        //let root_win = Window::new(root_widget); ////
+        //let root_box = WindowBox::new(&mut root_win); ////
+        ////let root = (self.root_builder)();
         state
-            .borrow_mut()
-            .add_window(self.id, Window::new(root, title, menu));
+            ////.borrow_mut()
+            .add_window(self.id, root_box); ////
+            ////.add_window(self.id, Window::new(root, title, menu));
 
         builder.build()
     }
 
+    /* ////
     /// Set the menu for this window.
     pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
         self.menu = Some(menu);
         self
+    }
+    */ ////
+}
+
+/// Implement formatted output for WindowDesc
+impl<T: Data + Default, W: Widget<T>> core::fmt::Debug for WindowDesc<T, W> { ////
+    fn fmt(&self, _fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        //  TODO
+        Ok(())
     }
 }
