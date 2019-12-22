@@ -14,7 +14,7 @@
 
 //! A widget that just adds padding during layout.
 
-use crate::kurbo::{Insets, Point, Rect, Size};
+use crate::prelude::*;
 use crate::{
     BaseState, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, PaintCtx, UpdateCtx, Widget,
     WidgetPod,

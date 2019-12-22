@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use druid::prelude::*;
 use druid::widget::{Align, Button, Checkbox, Flex, Label, Padding, ProgressBar, Slider};
 use druid::{AppLauncher, Data, Lens, LensWrap, Widget, WindowDesc};
 

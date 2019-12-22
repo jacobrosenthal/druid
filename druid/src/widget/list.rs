@@ -16,8 +16,7 @@
 
 use std::sync::Arc;
 
-use crate::kurbo::{Point, Rect, Size};
-
+use crate::prelude::*;
 use crate::{
     BaseState, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, PaintCtx, UpdateCtx, Widget,
     WidgetPod,

@@ -14,13 +14,11 @@
 
 //! A widget that aligns its child (for example, centering it).
 
-use crate::kurbo::{Rect, Size};
+use crate::prelude::*;
 use crate::{
     BaseState, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, PaintCtx, UpdateCtx, Widget,
     WidgetPod,
 };
-
-use crate::piet::UnitPoint;
 
 /// A widget that aligns its child.
 pub struct Align<T: Data> {
